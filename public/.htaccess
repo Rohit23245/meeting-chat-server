@@ -1,0 +1,65 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Don't rewrite actual files
+  RewriteRule ^index\.html$ - [L]
+
+  # API Rewrite Rules
+  # Map /api/register to createaccount.php
+  RewriteRule ^api/register/?$ api/createaccount.php [NC,L]
+
+  # Map /api/login to login.php
+  RewriteRule ^api/login/?$ api/login.php [NC,L]
+
+  # General rule for other /api/ endpoints to append .php if file exists
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{DOCUMENT_ROOT}/api/$1.php -f
+  RewriteRule ^api/(.*)$ api/$1.php [NC,L]
+
+  # Exclude /api/ and /uploads/ from SPA rewrites if they matched above
+  RewriteCond %{REQUEST_URI} ^/api/ [NC,OR]
+  RewriteCond %{REQUEST_URI} ^/uploads/ [NC]
+  RewriteRule ^ - [L]
+
+  # Map Vastu Plan Tool clean URL to the HTML file
+  RewriteRule ^vastu-plan-tool/?$ vastu-plan-tool.html [L]
+
+
+  # SPA Routing Fallback
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_FILENAME} !-l
+  # Do not redirect requests for missing static files to index.html (return 404 instead)
+  RewriteCond %{REQUEST_URI} !\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot|map|json|webp|wasm)$ [NC]
+  RewriteRule ^ /index.html [L]
+</IfModule>
+
+# ---- Cache Control ----
+
+# Never cache index.html (always fetch fresh)
+<Files "index.html">
+  Header set Cache-Control "no-cache, no-store, must-revalidate"
+  Header set Pragma "no-cache"
+  Header set Expires 0
+</Files>
+
+# Never cache Service Worker (always fetch fresh to get updates)
+<Files "sw.js">
+  Header set Cache-Control "no-cache, no-store, must-revalidate"
+  Header set Pragma "no-cache"
+  Header set Expires 0
+</Files>
+
+# Cache hashed assets for 1 year (JS, CSS, images - they have unique hashes)
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/javascript         "access plus 1 year"
+  ExpiresByType application/javascript  "access plus 1 year"
+  ExpiresByType text/css               "access plus 1 year"
+  ExpiresByType image/png              "access plus 1 year"
+  ExpiresByType image/svg+xml          "access plus 1 year"
+  ExpiresByType image/webp             "access plus 1 year"
+  ExpiresByType font/woff2             "access plus 1 year"
+</IfModule>

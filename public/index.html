@@ -1,57 +1,84 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Core WebRTC - Video, Audio & Screen Share</title>
-    <link rel="stylesheet" href="style.css">
-    <!-- Google Fonts for premium feel -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <!-- Socket.io client -->
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <meta charset="UTF-8" />
+  <base href="/" />
+  <link rel="icon" type="image/svg+xml" href="/assets/vite-DcBtz0py.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800;900&family=Poppins:wght@300;400;500;600;700;800;900&family=Cinzel:wght@400;500;600;700;800;900&family=Cinzel+Decorative:wght@400;700;900&family=Great+Vibes&display=swap"
+    rel="stylesheet">
+
+  <!-- SEO Meta Tags -->
+  <title>The Sanatan Gurukul – Ancient wisdom, modern results</title>
+  <meta name="description"
+    content="Experience the power of Occult sciences with The Sanatan Gurukul. Get accurate analysis, remedies, and spiritual guidance." />
+  <meta name="keywords"
+    content="Occult Science, Sanatan Gurukul, Vastu Shastra, Astrology, Numerology, Remedies" />
+  <meta name="robots" content="index, follow" />
+  <meta name="author" content="The Sanatan Gurukul" />
+  <meta name="theme-color" content="#1a1a1a" />
+  
+  <!-- Cache Control Meta Tags -->
+  <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="pragma" content="no-cache" />
+  <meta http-equiv="expires" content="0" />
+
+  <!-- Open Graph / Facebook / WhatsApp -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://thesanatangurukul.com/" />
+  <meta property="og:title" content="The Sanatan Gurukul – Ancient wisdom, modern results" />
+  <meta property="og:description"
+    content="Experience the power of Occult sciences with The Sanatan Gurukul. Get accurate analysis, remedies, and spiritual guidance." />
+  <meta property="og:image" content="https://thesanatangurukul.com/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image" />
+  <meta property="twitter:url" content="https://thesanatangurukul.com/" />
+  <meta property="twitter:title" content="The Sanatan Gurukul – Ancient wisdom, modern results" />
+  <meta property="twitter:description"
+    content="Experience the power of Occult sciences with The Sanatan Gurukul. Get accurate analysis, remedies, and spiritual guidance." />
+  <meta property="twitter:image" content="https://thesanatangurukul.com/og-image.png" />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="apple-touch-icon" href="/favicon.svg" />
+  <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        let shouldReload = false;
+        for (let registration of registrations) {
+          registration.unregister();
+          shouldReload = true;
+        }
+        if (shouldReload && !window.location.search.includes('sw_cleared')) {
+          const url = new URL(window.location.href);
+          url.searchParams.set('sw_cleared', '1');
+          window.location.replace(url.href);
+        }
+      });
+    }
+  </script>
+  <script type="module" crossorigin src="/assets/index-DzE2kDFC.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/vendor-react-BJRJ1rjI.js">
+  <link rel="modulepreload" crossorigin href="/assets/vendor-mui-C_cZPwgD.js">
+  <link rel="modulepreload" crossorigin href="/assets/vendor-utils-V4IOxqE1.js">
+  <link rel="modulepreload" crossorigin href="/assets/vendor-lucide-BYgISdeL.js">
+  <link rel="modulepreload" crossorigin href="/assets/vendor-charts-ma8vrInk.js">
+  <link rel="modulepreload" crossorigin href="/assets/vendor-pdf-DCVM8VhJ.js">
+  <link rel="modulepreload" crossorigin href="/assets/vendor-motion-C1mAhPdg.js">
+  <link rel="modulepreload" crossorigin href="/assets/vendor-astronomy-TDtrdbi3.js">
+  <link rel="stylesheet" crossorigin href="/assets/index-D0wNLqe4.css">
 </head>
+
 <body>
-    <div class="container">
-        <header>
-            <h1>WebRTC Pro Suite</h1>
-            <p>Integrated Video, Audio & Screen Sharing</p>
-        </header>
-
-        <main>
-            <div class="setup-panel">
-                <div class="input-group">
-                    <label for="myId">My User ID:</label>
-                    <input type="text" id="myId" placeholder="Enter your ID (e.g. 1)">
-                </div>
-                <div class="input-group">
-                    <label for="receiverId">Receiver ID:</label>
-                    <input type="text" id="receiverId" placeholder="ID to call/share with">
-                </div>
-                <button id="connectBtn" class="primary-btn">Connect & Register</button>
-                <div id="status" class="status-indicator">Disconnected</div>
-            </div>
-
-            <div class="call-controls" id="callControls" style="display: none;">
-                <button id="startVideoBtn" class="action-btn">Video Call</button>
-                <button id="startAudioBtn" class="action-btn">Audio Call</button>
-                <button id="startShareBtn" class="action-btn">Screen Share</button>
-                <button id="stopAllBtn" class="action-btn stop">End All</button>
-            </div>
-
-            <div class="media-grid">
-                <div class="video-container">
-                    <div class="badge">LOCAL</div>
-                    <video id="localVideo" autoplay playsinline muted></video>
-                    <div class="mic-status" id="localMicStatus">Mic: On</div>
-                </div>
-                <div class="video-container">
-                    <div class="badge">REMOTE</div>
-                    <video id="remoteVideo" autoplay playsinline></video>
-                    <div class="overlay-msg" id="remoteMsg">Waiting for incoming stream...</div>
-                </div>
-            </div>
-        </main>
-    </div>
-    <script src="script.js"></script>
+  <div id="root"></div>
 </body>
+
 </html>

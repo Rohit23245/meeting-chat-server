@@ -10,9 +10,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Serve Static Meeting UI Frontend
+// Serve Complete React App & Meeting System
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (req, res) => {
+  res.redirect('/occult/meet');
+});
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
+    return next();
+  }
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 

@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Vastu Floor Plan Tool</title>
+<style>
+  :root{
+    --cream:#faf3e6;
+    --panel:#fffaf1;
+    --maroon:#7a2e2e;
+    --maroon-dark:#5e2222;
+    --gold:#c9962c;
+    --ink:#2b2320;
+    --border:#ddccaa;
+    --muted:#8a7b63;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;font-family:"Segoe UI",Arial,sans-serif;color:var(--ink);background:var(--cream);overscroll-behavior:none;}
+  #app{display:flex;flex-direction:column;height:100vh;height:100dvh;}
+
+  header#toolbar{
+    background:var(--maroon);color:#fff;padding:8px 12px;display:flex;flex-wrap:wrap;
+    align-items:center;gap:14px;border-bottom:3px solid var(--gold);
+  }
+  header#toolbar h1{font-size:15px;margin:0 14px 0 0;font-weight:600;white-space:nowrap;}
+  .grp{display:flex;gap:4px;align-items:center;padding:2px 8px;border-left:1px solid rgba(255,255,255,0.25);flex-shrink:0;}
+  .grp:first-of-type{border-left:none;}
+  button.tool-btn, button.act-btn{
+    background:rgba(255,255,255,0.08);color:#fff;border:1px solid rgba(255,255,255,0.3);
+    padding:7px 10px;border-radius:5px;cursor:pointer;font-size:12.5px;white-space:nowrap;
+    touch-action:manipulation;
+  }
+  button.tool-btn:hover, button.act-btn:hover{background:rgba(255,255,255,0.2);}
+  button.tool-btn.active{background:var(--gold);color:#2b2000;border-color:var(--gold);font-weight:600;}
+  button.act-btn:disabled{opacity:0.4;cursor:not-allowed;}
+  .chk{display:flex;align-items:center;gap:4px;font-size:12px;color:#f5e9c8;}
+  .mobile-only{display:none;}
+  #zoomPct{color:#f5e9c8;font-size:12px;min-width:38px;text-align:center;}
+
+  #main{flex:1;display:flex;overflow:hidden;position:relative;}
+  aside{background:var(--panel);overflow-y:auto;padding:12px;font-size:13px;}
+  #left{width:230px;border-right:2px solid var(--border);}
+  #right{width:250px;border-left:2px solid var(--border);}
+  aside h2{font-size:12.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--maroon);margin:14px 0 6px;border-bottom:1px solid var(--border);padding-bottom:3px;}
+  aside h2:first-child{margin-top:0;}
+  details summary{cursor:pointer;font-weight:600;color:var(--maroon-dark);}
+  ol{padding-left:18px;margin:8px 0;}
+  ol li{margin-bottom:6px;line-height:1.35;}
+  .hint{font-size:11px;color:var(--muted);margin-top:2px;}
+  .panel-close{display:none;width:100%;padding:8px;margin-bottom:10px;background:var(--maroon-dark);color:#fff;border:none;border-radius:5px;font-size:13px;}
+
+  #canvas-wrap{flex:1;position:relative;background:#fff;overflow:hidden;touch-action:none;overscroll-behavior:none;}
+  canvas{display:block;cursor:crosshair;touch-action:none;}
+
+  .field{margin-bottom:8px;}
+  .field label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:2px;}
+  .field input[type=range]{width:100%;}
+  .field input[type=number], .field input[type=text]{width:100%;padding:6px;border:1px solid var(--border);border-radius:4px;font-size:13px;}
+  .btn-block{display:block;width:100%;padding:9px;margin-bottom:6px;background:var(--maroon);color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:12.5px;touch-action:manipulation;}
+  .btn-block:hover{background:var(--maroon-dark);}
+  .btn-block.secondary{background:#fff;color:var(--maroon);border:1px solid var(--maroon);}
+  .btn-block.secondary:hover{background:#f4e6d0;}
+  .unit-row{display:flex;gap:6px;margin-bottom:8px;}
+  .unit-btn{flex:1;margin:0;}
+  .unit-btn.active{background:var(--gold);color:#2b2000;border-color:var(--gold);}
+  .two-col{display:flex;gap:8px;}
+  .two-col .field{flex:1;}
+
+  #elList .el-row{border:1px solid var(--border);border-radius:6px;padding:6px 8px;margin-bottom:6px;background:#fff;}
+  #elList .el-row.selected{border-color:var(--gold);box-shadow:0 0 0 2px rgba(201,150,44,.3);}
+  #elList .el-row input[type=text]{width:100%;border:none;background:transparent;font-weight:600;font-size:13px;padding:1px 0;color:var(--ink);}
+  #elList .el-row .meta{display:flex;justify-content:space-between;align-items:center;margin-top:3px;}
+  #elList .dim-badge{background:var(--gold);color:#2b2000;font-size:10.5px;padding:1px 6px;border-radius:10px;font-weight:600;}
+  #elList .type-tag{color:var(--muted);font-size:10px;text-transform:uppercase;}
+  #elList .del{background:none;border:none;color:#a33;cursor:pointer;font-size:11px;}
+  #elList .empty{color:var(--muted);font-style:italic;font-size:12px;}
+
+  footer#status{background:var(--maroon-dark);color:#f2e6cc;font-size:11.5px;padding:5px 12px;display:flex;justify-content:space-between;}
+
+  #fileInput, #jsonInput{display:none;}
+  #backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.42);z-index:40;}
+  #backdrop.show{display:block;}
+  .text-editor-input{position:absolute;z-index:60;font-size:13px;padding:5px 7px;border:2px solid var(--gold);border-radius:4px;background:#fff;min-width:140px;}
+
+  @media (max-width: 820px){
+    .mobile-only{display:inline-flex;}
+    header#toolbar{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+    header#toolbar h1{display:none;}
+    #left, #right{
+      position:fixed;top:0;bottom:0;width:84%;max-width:320px;z-index:50;
+      transition:transform .25s ease;box-shadow:2px 0 14px rgba(0,0,0,.3);
+    }
+    #left{left:0;transform:translateX(-105%);}
+    #right{right:0;transform:translateX(105%);}
+    #left.open{transform:translateX(0);}
+    #right.open{transform:translateX(0);}
+    .panel-close{display:block;}
+    button.tool-btn, button.act-btn{padding:10px 12px;font-size:13.5px;}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header id="toolbar">
+    <h1>Vastu Floor Plan Tool</h1>
+
+    <div class="grp mobile-only">
+      <button class="act-btn" id="openLeftBtn">Sketch &amp; Scale</button>
+      <button class="act-btn" id="openRightBtn">Rooms</button>
+    </div>
+
+    <div class="grp" id="toolGroup">
+      <button class="tool-btn" data-tool="select" title="Select / Move / Resize">Select</button>
+      <button class="tool-btn" data-tool="boundary" title="Draw outer plot boundary">Plot Boundary</button>
+      <button class="tool-btn" data-tool="wall" title="Click to place wall points, double-click to finish">Wall</button>
+      <button class="tool-btn" data-tool="room" title="Drag to draw a room">Room</button>
+      <button class="tool-btn" data-tool="door" title="Click near a wall to place a door">Door</button>
+      <button class="tool-btn" data-tool="entrance" title="Click near a wall to mark the main entrance">Main Entrance</button>
+      <button class="tool-btn" data-tool="window" title="Click near a wall to place a window">Window</button>
+      <button class="tool-btn" data-tool="text" title="Click to type a label (Toilet, Entry, Bedroom-1...)">Text</button>
+      <button class="tool-btn" data-tool="eraser" title="Click an element to delete it">Eraser</button>
+    </div>
+
+    <div class="grp">
+      <button class="act-btn" id="undoBtn" title="Undo">Undo</button>
+      <button class="act-btn" id="redoBtn" title="Redo">Redo</button>
+    </div>
+
+    <div class="grp">
+      <button class="act-btn" id="zoomOutBtn" title="Zoom out">−</button>
+      <span id="zoomPct">100%</span>
+      <button class="act-btn" id="zoomInBtn" title="Zoom in">+</button>
+      <button class="act-btn" id="zoomResetBtn" title="Reset zoom">Fit</button>
+    </div>
+
+    <div class="grp">
+      <label class="chk"><input type="checkbox" id="chkGrid" checked> Grid</label>
+      <label class="chk"><input type="checkbox" id="chkSnap" checked> Snap</label>
+    </div>
+
+    <div class="grp">
+      <button class="act-btn" id="sampleBtn">Load Sample</button>
+      <button class="act-btn" id="newBtn">New</button>
+    </div>
+  </header>
+
+  <div id="main">
+    <div id="backdrop"></div>
+    <aside id="left">
+      <button class="panel-close" data-target="left">Close ✕</button>
+      <h2>How to use</h2>
+      <details open>
+        <summary>Trace a hand-drawn sketch</summary>
+        <ol>
+          <li>Click "Upload Sketch" and choose a photo of your hand-drawn plan.</li>
+          <li>Lower the opacity slider so it shows faintly.</li>
+          <li>Use "Plot Boundary" to trace the outer wall first.</li>
+          <li>Use "Wall" and "Room" to trace rooms on top.</li>
+        </ol>
+      </details>
+      <details>
+        <summary>Zoom, irregular shapes &amp; sizes</summary>
+        <ol>
+          <li>Pinch (mobile) or scroll (desktop) on the canvas to zoom. Drag empty space to pan.</li>
+          <li>Zoom out + keep Snap on to place walls quickly in whole feet. Zoom in + turn Snap off to fine-tune inches.</li>
+          <li>Select the boundary or any room, then drag any corner dot independently — each wall keeps its own length.</li>
+          <li>Double-tap along a wall to add a new corner (L-shapes), double-tap a corner to remove it.</li>
+          <li>Select a door/window and drag its blue dot to resize or reorient it.</li>
+        </ol>
+      </details>
+
+      <h2>Sketch to trace</h2>
+      <button class="btn-block" id="uploadBtn">Upload Sketch</button>
+      <input type="file" id="fileInput" accept="image/*">
+      <div class="field">
+        <label>Opacity</label>
+        <input type="range" id="bgOpacity" min="0" max="1" step="0.05" value="0.5">
+      </div>
+      <label class="chk" style="color:var(--muted)"><input type="checkbox" id="bgVisible" checked> Show sketch</label>
+      <button class="btn-block secondary" id="removeBgBtn">Remove Sketch</button>
+
+      <h2>Scale</h2>
+      <div class="unit-row">
+        <button class="btn-block secondary unit-btn" id="unitFt">Feet</button>
+        <button class="btn-block secondary unit-btn" id="unitM">Meters</button>
+      </div>
+      <div class="field">
+        <label>1 grid square = ___ feet</label>
+        <input type="number" id="ftPerSquare" min="0.05" step="0.05" value="1">
+        <div class="hint">Sizes are always calibrated in feet here; the buttons above just change the display unit.</div>
+      </div>
+
+      <h2>Default sizes</h2>
+      <div class="two-col">
+        <div class="field"><label>Door width (ft)</label><input type="number" id="doorFt" min="0.5" step="0.5" value="3"></div>
+        <div class="field"><label>Window width (ft)</label><input type="number" id="windowFt" min="0.5" step="0.5" value="4"></div>
+      </div>
+      <div class="hint">Applies to newly placed doors/windows. Existing ones: select, then drag their blue dot to resize.</div>
+    </aside>
+
+    <div id="canvas-wrap">
+      <canvas id="canvas"></canvas>
+    </div>
+
+    <aside id="right">
+      <button class="panel-close" data-target="right">Close ✕</button>
+      <h2>Rooms, Entrance &amp; Labels</h2>
+      <div id="elList"><div class="empty">Nothing drawn yet.</div></div>
+
+      <h2>Project</h2>
+      <button class="btn-block" id="saveJsonBtn">Save Project (.json)</button>
+      <button class="btn-block secondary" id="loadJsonBtn">Load Project</button>
+      <input type="file" id="jsonInput" accept="application/json">
+      <button class="btn-block secondary" id="exportPngBtn">Export as Image (PNG)</button>
+    </aside>
+  </div>
+
+  <footer id="status">
+    <span id="toolHint">Tool: Select — click an element to select or drag to move it.</span>
+    <span id="coords"></span>
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- constants ----------
+  let idCounter = 1;
+  const uid = () => "el" + (idCounter++);
+
+  const GRID_PX = 20;         // world units per grid square
+  const FT_TO_M = 0.3048;
+  const HANDLE_R = 15;        // screen-px touch radius for handles (compensated by zoom)
+  const POINT_HIT_R = 18;     // screen-px hit radius for doors/windows
+  const WALL_HIT_R = 12;      // screen-px hit radius for wall body
+  const MIN_SCALE = 0.15, MAX_SCALE = 10;
+
+  const state = {
+    tool: "select",
+    elements: [],
+    selectedId: null,
+    bg: { src: null, img: null, opacity: 0.5, visible: true },
+    snap: true,
+    showGrid: true,
+    unit: "ft",
+    ftPerSquare: 1,
+    doorFt: 3,
+    windowFt: 4,
+    drawing: null,
+    view: { scale: 1, panX: 0, panY: 0 }
+  };
+  const history = [];
+  const future = [];
+
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+  function isPolyType(t){ return t === "boundary" || t === "room"; }
+
+  function snapshot(){
+    return JSON.stringify({
+      elements: state.elements, unit: state.unit, ftPerSquare: state.ftPerSquare,
+      doorFt: state.doorFt, windowFt: state.windowFt
+    });
+  }
+  function pushHistory(){
+    history.push(snapshot());
+    if (history.length > 60) history.shift();
+    future.length = 0;
+    updateUndoRedoButtons();
+  }
+  function applySnapshot(s){
+    const d = JSON.parse(s);
+    state.elements = d.elements;
+    state.unit = d.unit || "ft";
+    state.ftPerSquare = d.ftPerSquare || 1;
+    state.doorFt = d.doorFt || 3;
+    state.windowFt = d.windowFt || 4;
+    state.selectedId = null;
+    document.getElementById("ftPerSquare").value = state.ftPerSquare;
+    document.getElementById("doorFt").value = state.doorFt;
+    document.getElementById("windowFt").value = state.windowFt;
+    updateUnitButtons();
+  }
+  function undo(){
+    if (!history.length) return;
+    future.push(snapshot());
+    applySnapshot(history.pop());
+    render(); rebuildList(); updateUndoRedoButtons();
+  }
+  function redo(){
+    if (!future.length) return;
+    history.push(snapshot());
+    applySnapshot(future.pop());
+    render(); rebuildList(); updateUndoRedoButtons();
+  }
+  function updateUndoRedoButtons(){
+    document.getElementById("undoBtn").disabled = history.length === 0;
+    document.getElementById("redoBtn").disabled = future.length === 0;
+  }
+
+  // ---------- canvas setup ----------
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+  const wrap = document.getElementById("canvas-wrap");
+
+  function resizeCanvas(){
+    const rect = wrap.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    canvas.style.width = rect.width + "px";
+    canvas.style.height = rect.height + "px";
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    render();
+  }
+  window.addEventListener("resize", resizeCanvas);
+  window.addEventListener("orientationchange", () => setTimeout(resizeCanvas, 200));
+
+  function csize(){
+    const rect = wrap.getBoundingClientRect();
+    return { w: rect.width, h: rect.height };
+  }
+
+  // ---------- view transform (pan/zoom) ----------
+  function toWorld(sx,sy){
+    return { x: (sx - state.view.panX) / state.view.scale, y: (sy - state.view.panY) / state.view.scale };
+  }
+  function toScreen(wx,wy){
+    return { x: wx*state.view.scale + state.view.panX, y: wy*state.view.scale + state.view.panY };
+  }
+  function updateZoomLabel(){
+    document.getElementById("zoomPct").textContent = Math.round(state.view.scale*100) + "%";
+  }
+  function zoomAtScreenPoint(sx, sy, factor){
+    const before = toWorld(sx,sy);
+    state.view.scale = clamp(state.view.scale * factor, MIN_SCALE, MAX_SCALE);
+    state.view.panX = sx - before.x*state.view.scale;
+    state.view.panY = sy - before.y*state.view.scale;
+    updateZoomLabel(); render();
+  }
+
+  // ---------- units / length formatting ----------
+  function formatLength(px){
+    const ft = (px / GRID_PX) * state.ftPerSquare;
+    if (state.unit === "ft") return ft.toFixed(1) + " ft";
+    return (ft * FT_TO_M).toFixed(2) + " m";
+  }
+  function ftToPx(ft){
+    return (ft / state.ftPerSquare) * GRID_PX;
+  }
+
+  // ---------- geometry helpers ----------
+  function snapPt(x,y){
+    if (!state.snap) return {x,y};
+    return { x: Math.round(x/GRID_PX)*GRID_PX, y: Math.round(y/GRID_PX)*GRID_PX };
+  }
+  function dist(x1,y1,x2,y2){ return Math.hypot(x2-x1, y2-y1); }
+  function ptSegDist(px,py,x1,y1,x2,y2){
+    const dx=x2-x1, dy=y2-y1;
+    const len2 = dx*dx+dy*dy;
+    let t = len2 === 0 ? 0 : ((px-x1)*dx + (py-y1)*dy)/len2;
+    t = Math.max(0, Math.min(1, t));
+    const cx = x1 + t*dx, cy = y1 + t*dy;
+    return { d: dist(px,py,cx,cy), x: cx, y: cy, t };
+  }
+  function snapAngle(x1,y1,x2,y2){
+    if (!state.snap) return {x:x2,y:y2};
+    const ang = Math.atan2(y2-y1, x2-x1);
+    const step = Math.PI/12;
+    const snapped = Math.round(ang/step)*step;
+    const len = dist(x1,y1,x2,y2);
+    return { x: x1 + Math.cos(snapped)*len, y: y1 + Math.sin(snapped)*len };
+  }
+  function pointInPolygon(x,y,points){
+    let inside = false;
+    for (let i=0,j=points.length-1;i<points.length;j=i++){
+      const xi=points[i].x, yi=points[i].y, xj=points[j].x, yj=points[j].y;
+      const intersect = ((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi);
+      if (intersect) inside = !inside;
+    }
+    return inside;
+  }
+  function polygonCentroid(points){
+    let cx=0, cy=0;
+    for (const p of points){ cx += p.x; cy += p.y; }
+    return { x: cx/points.length, y: cy/points.length };
+  }
+  function textWorldSize(el){
+    const scale = state.view.scale;
+    ctx.font = (14/scale) + "px Segoe UI";
+    const w = ctx.measureText(el.text).width + 8/scale;
+    const h = 20/scale;
+    return { w, h };
+  }
+
+  function nearestWallPoint(x,y){
+    let best = null;
+    for (const el of state.elements){
+      if (el.type !== "wall") continue;
+      const r = ptSegDist(x,y, el.x1,el.y1, el.x2,el.y2);
+      if (r.d < 60 && (!best || r.d < best.d)){
+        best = { d:r.d, x:r.x, y:r.y, angle: Math.atan2(el.y2-el.y1, el.x2-el.x1) };
+      }
+    }
+    return best;
+  }
+
+  // ---------- legacy migration (old rect-based rooms/boundary) ----------
+  function migrateElement(el){
+    if ((el.type === "room" || el.type === "boundary") && !el.points && typeof el.w === "number"){
+      const x=el.x, y=el.y, w=el.w, h=el.h;
+      el.points = [ {x,y}, {x:x+w,y}, {x:x+w,y:y+h}, {x,y:y+h} ];
+      delete el.x; delete el.y; delete el.w; delete el.h;
+    }
+    return el;
+  }
+
+  // ---------- rendering ----------
+  function render(){
+    const s = csize();
+    ctx.save();
+    ctx.clearRect(0,0,s.w,s.h);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0,0,s.w,s.h);
+
+    ctx.save();
+    ctx.translate(state.view.panX, state.view.panY);
+    ctx.scale(state.view.scale, state.view.scale);
+
+    if (state.showGrid){
+      const tl = toWorld(0,0), br = toWorld(s.w,s.h);
+      const startX = Math.floor(tl.x/GRID_PX)*GRID_PX, endX = Math.ceil(br.x/GRID_PX)*GRID_PX;
+      const startY = Math.floor(tl.y/GRID_PX)*GRID_PX, endY = Math.ceil(br.y/GRID_PX)*GRID_PX;
+      ctx.strokeStyle = "#eee2c8";
+      ctx.lineWidth = 1/state.view.scale;
+      for (let x=startX; x<=endX; x+=GRID_PX){ ctx.beginPath(); ctx.moveTo(x,startY); ctx.lineTo(x,endY); ctx.stroke(); }
+      for (let y=startY; y<=endY; y+=GRID_PX){ ctx.beginPath(); ctx.moveTo(startX,y); ctx.lineTo(endX,y); ctx.stroke(); }
+    }
+
+    if (state.bg.img && state.bg.visible){
+      ctx.save();
+      ctx.globalAlpha = state.bg.opacity;
+      ctx.drawImage(state.bg.img, state.bg.x, state.bg.y, state.bg.w, state.bg.h);
+      ctx.restore();
+    }
+
+    for (const el of state.elements) if (el.type === "boundary") drawBoundary(el);
+    for (const el of state.elements) if (el.type === "room") drawRoom(el);
+    for (const el of state.elements) if (el.type === "wall") drawWall(el);
+    for (const el of state.elements) if (el.type === "window") drawWindow(el);
+    for (const el of state.elements) if (el.type === "door") drawDoor(el);
+    for (const el of state.elements) if (el.type === "text") drawText(el);
+
+    drawPreview();
+    drawSelection();
+
+    ctx.restore();
+    ctx.restore();
+  }
+
+  function drawDimLabel(lengthPx, x, y, rotation){
+    const scale = state.view.scale;
+    const txt = formatLength(lengthPx);
+    ctx.save();
+    ctx.translate(x,y);
+    ctx.rotate(rotation);
+    ctx.font = (11/scale) + "px Segoe UI";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const w = ctx.measureText(txt).width;
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.fillRect(-w/2-3/scale, -8/scale, w+6/scale, 16/scale);
+    ctx.fillStyle = "#7a2e2e";
+    ctx.fillText(txt, 0, 0);
+    ctx.restore();
+  }
+
+  function polygonPath(pts){
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
+    ctx.closePath();
+  }
+
+  function drawPolygonEdgeLabels(pts){
+    const centroid = polygonCentroid(pts);
+    for (let i=0;i<pts.length;i++){
+      const a = pts[i], b = pts[(i+1)%pts.length];
+      const len = dist(a.x,a.y,b.x,b.y);
+      if (len < 2) continue;
+      const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+      let angle = Math.atan2(b.y-a.y, b.x-a.x);
+      if (angle > Math.PI/2 || angle < -Math.PI/2) angle += Math.PI;
+      let ox = mx - centroid.x, oy = my - centroid.y;
+      const ol = Math.hypot(ox,oy) || 1;
+      ox /= ol; oy /= ol;
+      drawDimLabel(len, mx + ox*14/state.view.scale, my + oy*14/state.view.scale, angle);
+    }
+  }
+
+  function drawBoundary(el){
+    ctx.save();
+    ctx.strokeStyle = "#3a2f22";
+    ctx.lineWidth = 3/state.view.scale;
+    ctx.setLineDash([10/state.view.scale,4/state.view.scale]);
+    polygonPath(el.points);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+    drawPolygonEdgeLabels(el.points);
+  }
+
+  function drawRoom(el){
+    ctx.save();
+    ctx.fillStyle = "#fef6e0";
+    polygonPath(el.points);
+    ctx.fill();
+    ctx.strokeStyle = "#a97c3a";
+    ctx.lineWidth = 2/state.view.scale;
+    ctx.stroke();
+    const c = polygonCentroid(el.points);
+    ctx.fillStyle = "#3a2f22";
+    ctx.font = (13/state.view.scale) + "px Segoe UI";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(el.label || "Room", c.x, c.y);
+    ctx.restore();
+    drawPolygonEdgeLabels(el.points);
+  }
+
+  function drawWall(el){
+    ctx.save();
+    ctx.strokeStyle = "#2b2320";
+    ctx.lineWidth = 6/state.view.scale;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(el.x1, el.y1);
+    ctx.lineTo(el.x2, el.y2);
+    ctx.stroke();
+    ctx.restore();
+
+    const len = dist(el.x1,el.y1,el.x2,el.y2);
+    const mx = (el.x1+el.x2)/2, my = (el.y1+el.y2)/2;
+    let angle = Math.atan2(el.y2-el.y1, el.x2-el.x1);
+    if (angle > Math.PI/2 || angle < -Math.PI/2) angle += Math.PI;
+    const perpX = -Math.sin(angle), perpY = Math.cos(angle);
+    drawDimLabel(len, mx + perpX*13/state.view.scale, my + perpY*13/state.view.scale, angle);
+  }
+
+  function doorHandlePoint(el){
+    return { x: el.x + Math.cos(el.angle)*el.width/2, y: el.y + Math.sin(el.angle)*el.width/2 };
+  }
+
+  function drawWindow(el){
+    ctx.save();
+    ctx.translate(el.x, el.y);
+    ctx.rotate(el.angle || 0);
+    ctx.fillStyle = "#5b8fc9";
+    ctx.fillRect(-el.width/2, -4/state.view.scale, el.width, 8/state.view.scale);
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 1/state.view.scale;
+    ctx.strokeRect(-el.width/2, -4/state.view.scale, el.width, 8/state.view.scale);
+    ctx.restore();
+    let angle = el.angle||0;
+    if (angle > Math.PI/2 || angle < -Math.PI/2) angle += Math.PI;
+    const perpX=-Math.sin(angle), perpY=Math.cos(angle);
+    drawDimLabel(el.width, el.x+perpX*14/state.view.scale, el.y+perpY*14/state.view.scale, angle);
+  }
+
+  function drawDoor(el){
+    ctx.save();
+    ctx.translate(el.x, el.y);
+    ctx.rotate(el.angle || 0);
+    ctx.strokeStyle = el.main ? "#c9962c" : "#8a5a2b";
+    ctx.fillStyle = el.main ? "#c9962c" : "#8a5a2b";
+    ctx.lineWidth = (el.main ? 4 : 3)/state.view.scale;
+    ctx.beginPath();
+    ctx.moveTo(-el.width/2, 0);
+    ctx.lineTo(el.width/2, 0);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(-el.width/2, 0, el.width, Math.PI*1.5, Math.PI*2);
+    ctx.stroke();
+    ctx.restore();
+
+    let angle = el.angle||0;
+    if (angle > Math.PI/2 || angle < -Math.PI/2) angle += Math.PI;
+    const perpX=-Math.sin(angle), perpY=Math.cos(angle);
+    drawDimLabel(el.width, el.x+perpX*14/state.view.scale, el.y+perpY*14/state.view.scale, angle);
+
+    if (el.main){
+      ctx.save();
+      ctx.fillStyle = "#7a2e2e";
+      ctx.font = "bold " + (11/state.view.scale) + "px Segoe UI";
+      ctx.textAlign = "center";
+      ctx.fillText("MAIN ENTRANCE", el.x, el.y - 22/state.view.scale);
+      ctx.restore();
+    }
+  }
+
+  function drawText(el){
+    const scale = state.view.scale;
+    ctx.save();
+    ctx.font = (14/scale) + "px Segoe UI";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    const w = ctx.measureText(el.text).width;
+    ctx.fillStyle = "rgba(255,255,255,0.88)";
+    ctx.fillRect(el.x-4/scale, el.y-10/scale, w+8/scale, 20/scale);
+    ctx.strokeStyle = "#c9962c";
+    ctx.lineWidth = 1/scale;
+    ctx.strokeRect(el.x-4/scale, el.y-10/scale, w+8/scale, 20/scale);
+    ctx.fillStyle = "#2b2320";
+    ctx.fillText(el.text, el.x, el.y);
+    ctx.restore();
+  }
+
+  function drawPreview(){
+    const d = state.drawing;
+    if (!d) return;
+    ctx.save();
+    ctx.strokeStyle = "#c9962c";
+    ctx.lineWidth = 2/state.view.scale;
+    ctx.setLineDash([6/state.view.scale,4/state.view.scale]);
+    if (d.type === "wall-chain" && d.points.length){
+      ctx.beginPath();
+      ctx.moveTo(d.points[0].x, d.points[0].y);
+      for (let i=1;i<d.points.length;i++) ctx.lineTo(d.points[i].x, d.points[i].y);
+      if (d.preview) ctx.lineTo(d.preview.x, d.preview.y);
+      ctx.stroke();
+      if (d.preview){
+        const last = d.points[d.points.length-1];
+        const len = dist(last.x,last.y,d.preview.x,d.preview.y);
+        ctx.restore();
+        drawDimLabel(len, (last.x+d.preview.x)/2, (last.y+d.preview.y)/2 - 12/state.view.scale, 0);
+        return;
+      }
+    } else if ((d.type === "room" || d.type === "boundary") && d.preview){
+      ctx.strokeRect(d.start.x, d.start.y, d.preview.x-d.start.x, d.preview.y-d.start.y);
+      ctx.restore();
+      const cx = (d.start.x+d.preview.x)/2, cy = (d.start.y+d.preview.y)/2;
+      drawDimLabel(Math.abs(d.preview.x-d.start.x), cx, Math.min(d.start.y,d.preview.y)-10/state.view.scale, 0);
+      drawDimLabel(Math.abs(d.preview.y-d.start.y), Math.min(d.start.x,d.preview.x)-10/state.view.scale, cy, -Math.PI/2);
+      return;
+    }
+    ctx.restore();
+  }
+
+  function drawSelection(){
+    if (!state.selectedId) return;
+    const el = state.elements.find(e => e.id === state.selectedId);
+    if (!el) return;
+    const scale = state.view.scale;
+    ctx.save();
+    ctx.strokeStyle = "#2a7bd1";
+    ctx.lineWidth = 1.5/scale;
+    ctx.setLineDash([4/scale,3/scale]);
+
+    if (isPolyType(el.type)){
+      polygonPath(el.points);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#2a7bd1";
+      for (const p of el.points){
+        ctx.beginPath(); ctx.arc(p.x, p.y, 7/scale, 0, Math.PI*2); ctx.fill();
+        ctx.save(); ctx.strokeStyle="#fff"; ctx.lineWidth=2/scale; ctx.stroke(); ctx.restore();
+      }
+    } else if (el.type === "wall"){
+      ctx.beginPath(); ctx.moveTo(el.x1,el.y1); ctx.lineTo(el.x2,el.y2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#2a7bd1";
+      ctx.fillRect(el.x1-5/scale, el.y1-5/scale, 10/scale,10/scale);
+      ctx.fillRect(el.x2-5/scale, el.y2-5/scale, 10/scale,10/scale);
+    } else if (el.type === "door" || el.type === "window"){
+      ctx.beginPath(); ctx.arc(el.x, el.y, 12/scale, 0, Math.PI*2); ctx.stroke();
+      ctx.setLineDash([]);
+      const hp = doorHandlePoint(el);
+      ctx.fillStyle = "#2a7bd1";
+      ctx.beginPath(); ctx.arc(hp.x, hp.y, 7/scale, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle="#fff"; ctx.lineWidth=2/scale; ctx.stroke();
+    } else {
+      ctx.strokeRect(el.x-4/scale, el.y-12/scale, 30/scale, 24/scale);
+    }
+    ctx.restore();
+  }
+
+  // ---------- hit testing (x,y already in world coords) ----------
+  function hitTest(x,y){
+    const hr = HANDLE_R/state.view.scale;
+    if (state.selectedId){
+      const sel = state.elements.find(e => e.id === state.selectedId);
+      if (sel){
+        if (isPolyType(sel.type)){
+          for (let i=0;i<sel.points.length;i++){
+            if (dist(x,y,sel.points[i].x,sel.points[i].y) < hr) return { el: sel, vertexIndex: i };
+          }
+        } else if (sel.type === "wall"){
+          if (dist(x,y,sel.x1,sel.y1) < hr) return { el: sel, wallEndpoint: 0 };
+          if (dist(x,y,sel.x2,sel.y2) < hr) return { el: sel, wallEndpoint: 1 };
+        } else if (sel.type === "door" || sel.type === "window"){
+          const hp = doorHandlePoint(sel);
+          if (dist(x,y,hp.x,hp.y) < hr) return { el: sel, doorHandle: true };
+        }
+      }
+    }
+    const pr = POINT_HIT_R/state.view.scale;
+    for (let i=state.elements.length-1;i>=0;i--){
+      const el = state.elements[i];
+      if ((el.type === "door" || el.type === "window") && dist(x,y,el.x,el.y) < pr) return { el };
+    }
+    for (let i=state.elements.length-1;i>=0;i--){
+      const el = state.elements[i];
+      if (el.type === "text"){
+        const sz = textWorldSize(el);
+        if (x>=el.x-6/state.view.scale && x<=el.x+sz.w && y>=el.y-sz.h/2 && y<=el.y+sz.h/2) return { el };
+      }
+    }
+    for (let i=state.elements.length-1;i>=0;i--){
+      const el = state.elements[i];
+      if (isPolyType(el.type) && pointInPolygon(x,y, el.points)) return { el };
+    }
+    const wr = WALL_HIT_R/state.view.scale;
+    for (let i=state.elements.length-1;i>=0;i--){
+      const el = state.elements[i];
+      if (el.type === "wall"){
+        const r = ptSegDist(x,y, el.x1,el.y1, el.x2,el.y2);
+        if (r.d < wr) return { el };
+      }
+    }
+    return null;
+  }
+
+  // ---------- pointer interaction (pan / zoom / draw / edit) ----------
+  let dragState = null;
+  const pointers = new Map(); // pointerId -> {x,y} screen coords
+  let pinch = null;
+
+  function screenPos(evt){
+    const rect = canvas.getBoundingClientRect();
+    return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+  }
+
+  function finishSinglePointerInteractions(){
+    if (state.drawing && (state.drawing.type === "room" || state.drawing.type === "boundary")){
+      state.drawing = null; render();
+    }
+    dragState = null;
+  }
+
+  canvas.addEventListener("pointerdown", (e) => {
+    canvas.setPointerCapture(e.pointerId);
+    const sp = screenPos(e);
+    pointers.set(e.pointerId, sp);
+
+    if (pointers.size === 2){
+      finishSinglePointerInteractions();
+      const pts = [...pointers.values()];
+      const d0 = dist(pts[0].x,pts[0].y,pts[1].x,pts[1].y);
+      const mid = { x:(pts[0].x+pts[1].x)/2, y:(pts[0].y+pts[1].y)/2 };
+      pinch = { startDist: Math.max(d0,1), startScale: state.view.scale, worldAnchor: toWorld(mid.x,mid.y) };
+      return;
+    }
+    if (pointers.size > 2) return;
+
+    const p = toWorld(sp.x, sp.y);
+    const tool = state.tool;
+
+    if (tool === "text"){
+      openTextEditor(null, sp, p);
+      return;
+    }
+
+    if (tool === "select"){
+      const hit = hitTest(p.x, p.y);
+      if (hit){
+        state.selectedId = hit.el.id;
+        pushHistory();
+        if (hit.vertexIndex !== undefined){
+          dragState = { mode: "vertex", el: hit.el, vertexIndex: hit.vertexIndex };
+        } else if (hit.wallEndpoint !== undefined){
+          dragState = { mode: "wall-endpoint", el: hit.el, endpoint: hit.wallEndpoint };
+        } else if (hit.doorHandle){
+          dragState = { mode: "door-resize", el: hit.el };
+        } else {
+          const orig = isPolyType(hit.el.type)
+            ? { points: hit.el.points.map(pt => ({x:pt.x, y:pt.y})) }
+            : {...hit.el};
+          dragState = { mode: "move", el: hit.el, startX:p.x, startY:p.y, orig };
+        }
+      } else {
+        state.selectedId = null;
+        dragState = { mode: "pan", startSX: sp.x, startSY: sp.y, startPanX: state.view.panX, startPanY: state.view.panY };
+      }
+      render(); rebuildList();
+      return;
+    }
+
+    if (tool === "eraser"){
+      const hit = hitTest(p.x, p.y);
+      if (hit){
+        pushHistory();
+        state.elements = state.elements.filter(e => e.id !== hit.el.id);
+        render(); rebuildList();
+      }
+      return;
+    }
+
+    if (tool === "boundary" || tool === "room"){
+      const sp2 = snapPt(p.x, p.y);
+      state.drawing = { type: tool, start: sp2, preview: sp2 };
+      return;
+    }
+
+    if (tool === "wall"){
+      const sp2 = snapPt(p.x, p.y);
+      if (!state.drawing || state.drawing.type !== "wall-chain"){
+        state.drawing = { type: "wall-chain", points: [sp2], preview: sp2 };
+      } else {
+        const prev = state.drawing.points[state.drawing.points.length-1];
+        const snapped = snapAngle(prev.x, prev.y, sp2.x, sp2.y);
+        const finalPt = snapPt(snapped.x, snapped.y);
+        pushHistory();
+        state.elements.push({ id: uid(), type: "wall", x1: prev.x, y1: prev.y, x2: finalPt.x, y2: finalPt.y });
+        state.drawing.points.push(finalPt);
+        render();
+      }
+      return;
+    }
+
+    if (tool === "door" || tool === "entrance" || tool === "window"){
+      const near = nearestWallPoint(p.x, p.y);
+      const pt = near ? { x: near.x, y: near.y, angle: near.angle } : { x: p.x, y: p.y, angle: 0 };
+      pushHistory();
+      if (tool === "entrance"){
+        for (const el of state.elements) if (el.type === "door" && el.main) el.main = false;
+        state.elements.push({ id: uid(), type: "door", x: pt.x, y: pt.y, angle: pt.angle, width: ftToPx(state.doorFt), main: true });
+      } else if (tool === "door"){
+        state.elements.push({ id: uid(), type: "door", x: pt.x, y: pt.y, angle: pt.angle, width: ftToPx(state.doorFt), main: false });
+      } else {
+        state.elements.push({ id: uid(), type: "window", x: pt.x, y: pt.y, angle: pt.angle, width: ftToPx(state.windowFt) });
+      }
+      render(); rebuildList();
+      return;
+    }
+  });
+
+  canvas.addEventListener("pointermove", (e) => {
+    const sp = screenPos(e);
+    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, sp);
+    const w = toWorld(sp.x, sp.y);
+    document.getElementById("coords").textContent = "x:" + Math.round(w.x) + " y:" + Math.round(w.y);
+
+    if (pinch && pointers.size >= 2){
+      const pts = [...pointers.values()].slice(0,2);
+      const d1 = Math.max(dist(pts[0].x,pts[0].y,pts[1].x,pts[1].y),1);
+      const mid = { x:(pts[0].x+pts[1].x)/2, y:(pts[0].y+pts[1].y)/2 };
+      const newScale = clamp(pinch.startScale * (d1/pinch.startDist), MIN_SCALE, MAX_SCALE);
+      state.view.scale = newScale;
+      state.view.panX = mid.x - pinch.worldAnchor.x*newScale;
+      state.view.panY = mid.y - pinch.worldAnchor.y*newScale;
+      updateZoomLabel(); render();
+      return;
+    }
+
+    if (dragState){
+      const el = dragState.el;
+
+      if (dragState.mode === "pan"){
+        state.view.panX = dragState.startPanX + (sp.x - dragState.startSX);
+        state.view.panY = dragState.startPanY + (sp.y - dragState.startSY);
+        render();
+        return;
+      }
+      if (dragState.mode === "vertex"){
+        el.points[dragState.vertexIndex] = snapPt(w.x, w.y);
+        render();
+        return;
+      }
+      if (dragState.mode === "wall-endpoint"){
+        const pt = snapPt(w.x, w.y);
+        if (dragState.endpoint === 0){ el.x1 = pt.x; el.y1 = pt.y; } else { el.x2 = pt.x; el.y2 = pt.y; }
+        render();
+        return;
+      }
+      if (dragState.mode === "door-resize"){
+        const dx = w.x - el.x, dy = w.y - el.y;
+        let newAngle = Math.atan2(dy,dx);
+        let newWidth = Math.max(GRID_PX/2, 2*Math.hypot(dx,dy));
+        if (state.snap){
+          const step = Math.PI/12;
+          newAngle = Math.round(newAngle/step)*step;
+          newWidth = Math.round(newWidth/(GRID_PX/2))*(GRID_PX/2);
+        }
+        el.angle = newAngle; el.width = newWidth;
+        render();
+        return;
+      }
+      if (dragState.mode === "move"){
+        const dx = w.x - dragState.startX, dy = w.y - dragState.startY;
+        const orig = dragState.orig;
+        if (isPolyType(el.type)){
+          el.points = orig.points.map(pt => ({ x: pt.x+dx, y: pt.y+dy }));
+        } else { el.x = orig.x+dx; el.y = orig.y+dy; }
+        render();
+        return;
+      }
+    }
+
+    if (state.drawing){
+      const sp2 = state.snap ? snapPt(w.x,w.y) : {x:w.x,y:w.y};
+      if (state.drawing.type === "wall-chain"){
+        const prev = state.drawing.points[state.drawing.points.length-1];
+        state.drawing.preview = snapAngle(prev.x, prev.y, sp2.x, sp2.y);
+      } else {
+        state.drawing.preview = sp2;
+      }
+      render();
+    }
+  });
+
+  function endPointer(e){
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinch = null;
+    if (pointers.size === 0){
+      if (dragState){ dragState = null; rebuildList(); return; }
+      const sp = screenPos(e);
+      const w = toWorld(sp.x, sp.y);
+      if (state.drawing && (state.drawing.type === "room" || state.drawing.type === "boundary")){
+        const sp2 = snapPt(w.x, w.y);
+        const start = state.drawing.start;
+        const ww = sp2.x - start.x, hh = sp2.y - start.y;
+        if (Math.abs(ww) > 10 && Math.abs(hh) > 10){
+          pushHistory();
+          const x1 = Math.min(start.x, sp2.x), x2 = Math.max(start.x, sp2.x);
+          const y1 = Math.min(start.y, sp2.y), y2 = Math.max(start.y, sp2.y);
+          const pts = [ {x:x1,y:y1}, {x:x2,y:y1}, {x:x2,y:y2}, {x:x1,y:y2} ];
+          if (state.drawing.type === "boundary"){
+            state.elements = state.elements.filter(e2 => e2.type !== "boundary");
+            state.elements.unshift({ id: uid(), type: "boundary", points: pts });
+          } else {
+            const n = state.elements.filter(e2=>e2.type==="room").length + 1;
+            state.elements.push({ id: uid(), type: "room", points: pts, label: "Room " + n });
+          }
+        }
+        state.drawing = null;
+        render(); rebuildList();
+      }
+    }
+  }
+  canvas.addEventListener("pointerup", endPointer);
+  canvas.addEventListener("pointercancel", endPointer);
+
+  canvas.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const sp = screenPos(e);
+    const factor = e.deltaY < 0 ? 1.12 : 1/1.12;
+    zoomAtScreenPoint(sp.x, sp.y, factor);
+  }, { passive:false });
+
+  canvas.addEventListener("gesturestart", (e) => e.preventDefault());
+  canvas.addEventListener("gesturechange", (e) => e.preventDefault());
+
+  canvas.addEventListener("dblclick", (e) => {
+    if (state.drawing && state.drawing.type === "wall-chain"){ state.drawing = null; render(); return; }
+    const sp = screenPos(e);
+    const w = toWorld(sp.x, sp.y);
+
+    for (let i=state.elements.length-1;i>=0;i--){
+      const el2 = state.elements[i];
+      if (el2.type === "text"){
+        const sz = textWorldSize(el2);
+        if (w.x>=el2.x-6/state.view.scale && w.x<=el2.x+sz.w && w.y>=el2.y-sz.h/2 && w.y<=el2.y+sz.h/2){
+          openTextEditor(el2, toScreen(el2.x, el2.y));
+          return;
+        }
+      }
+    }
+
+    if (state.tool !== "select") return;
+    const sel = state.elements.find(el => el.id === state.selectedId);
+    if (!sel || !isPolyType(sel.type)) return;
+    const hr = HANDLE_R/state.view.scale;
+
+    for (let i=0;i<sel.points.length;i++){
+      if (dist(w.x,w.y,sel.points[i].x,sel.points[i].y) < hr){
+        if (sel.points.length > 3){ pushHistory(); sel.points.splice(i,1); render(); }
+        return;
+      }
+    }
+    for (let i=0;i<sel.points.length;i++){
+      const a = sel.points[i], b = sel.points[(i+1)%sel.points.length];
+      const r = ptSegDist(w.x,w.y,a.x,a.y,b.x,b.y);
+      if (r.d < hr){
+        pushHistory();
+        sel.points.splice(i+1, 0, snapPt(r.x, r.y));
+        render();
+        return;
+      }
+    }
+  });
+
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && state.drawing){ state.drawing = null; render(); }
+    if ((e.key === "Delete" || e.key === "Backspace") && state.selectedId && document.activeElement.tagName !== "INPUT"){
+      pushHistory();
+      state.elements = state.elements.filter(e => e.id !== state.selectedId);
+      state.selectedId = null;
+      render(); rebuildList();
+    }
+    if (e.ctrlKey && e.key.toLowerCase() === "z"){ e.preventDefault(); undo(); }
+    if (e.ctrlKey && (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase()==="z"))){ e.preventDefault(); redo(); }
+  });
+
+  // ---------- text label editor ----------
+  function openTextEditor(existingEl, screenPoint, worldPoint){
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "text-editor-input";
+    input.value = existingEl ? existingEl.text : "";
+    input.placeholder = "Toilet / Entry / Bedroom-1 …";
+    input.style.left = screenPoint.x + "px";
+    input.style.top = (screenPoint.y - 14) + "px";
+    wrap.appendChild(input);
+    input.focus();
+    input.select();
+
+    let done = false;
+    function commit(){
+      if (done) return; done = true;
+      const val = input.value.trim();
+      if (wrap.contains(input)) wrap.removeChild(input);
+      if (existingEl){
+        if (val){ pushHistory(); existingEl.text = val; render(); }
+        else { pushHistory(); state.elements = state.elements.filter(e=>e.id!==existingEl.id); render(); rebuildList(); }
+      } else if (val){
+        pushHistory();
+        state.elements.push({ id: uid(), type: "text", x: worldPoint.x, y: worldPoint.y, text: val });
+        render(); rebuildList();
+      }
+    }
+    function cancel(){
+      if (done) return; done = true;
+      if (wrap.contains(input)) wrap.removeChild(input);
+    }
+    input.addEventListener("keydown", (ev) => {
+      ev.stopPropagation();
+      if (ev.key === "Enter"){ ev.preventDefault(); commit(); }
+      if (ev.key === "Escape"){ ev.preventDefault(); cancel(); }
+    });
+    input.addEventListener("blur", commit);
+  }
+
+  // ---------- toolbar wiring ----------
+  document.querySelectorAll(".tool-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".tool-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      state.tool = btn.dataset.tool;
+      state.drawing = null;
+      state.selectedId = null;
+      const hints = {
+        select: "Tool: Select — drag an element to move it, drag empty space to pan, drag corner/blue dots to resize.",
+        boundary: "Tool: Plot Boundary — drag a rectangle first, then fine-tune each corner after.",
+        wall: "Tool: Wall — click to place points, keep clicking to continue, double-click/Esc to finish.",
+        room: "Tool: Room — drag a rectangle, then adjust each corner afterwards.",
+        door: "Tool: Door — click near a wall to place a door.",
+        entrance: "Tool: Main Entrance — click near a wall to mark your main door.",
+        window: "Tool: Window — click near a wall to place a window.",
+        text: "Tool: Text — click anywhere and type a label (e.g. Toilet, Bedroom-1).",
+        eraser: "Tool: Eraser — click any element to delete it."
+      };
+      document.getElementById("toolHint").textContent = hints[state.tool] || "";
+      render();
+      closePanels();
+    });
+  });
+  document.querySelector('[data-tool="select"]').classList.add("active");
+
+  document.getElementById("undoBtn").addEventListener("click", undo);
+  document.getElementById("redoBtn").addEventListener("click", redo);
+  updateUndoRedoButtons();
+
+  document.getElementById("chkGrid").addEventListener("change", e => { state.showGrid = e.target.checked; render(); });
+  document.getElementById("chkSnap").addEventListener("change", e => { state.snap = e.target.checked; });
+
+  document.getElementById("zoomInBtn").addEventListener("click", () => { const s=csize(); zoomAtScreenPoint(s.w/2, s.h/2, 1.2); });
+  document.getElementById("zoomOutBtn").addEventListener("click", () => { const s=csize(); zoomAtScreenPoint(s.w/2, s.h/2, 1/1.2); });
+  document.getElementById("zoomResetBtn").addEventListener("click", () => {
+    state.view.scale = 1; state.view.panX = 0; state.view.panY = 0;
+    updateZoomLabel(); render();
+  });
+
+  document.getElementById("newBtn").addEventListener("click", () => {
+    if (!confirm("Clear the current drawing? This cannot be undone.")) return;
+    pushHistory();
+    state.elements = []; state.selectedId = null;
+    render(); rebuildList();
+  });
+
+  document.getElementById("sampleBtn").addEventListener("click", () => {
+    pushHistory();
+    const s = csize();
+    const c0 = toWorld(s.w*0.5, s.h*0.5);
+    const w = 480, h = 360;
+    const ox = c0.x - w/2, oy = c0.y - h/2;
+    state.elements = [
+      { id: uid(), type:"boundary", points:[ {x:ox,y:oy}, {x:ox+w,y:oy}, {x:ox+w,y:oy+h}, {x:ox,y:oy+h} ] },
+      { id: uid(), type:"room", points:[ {x:ox+10,y:oy+10},{x:ox+w*0.45-5,y:oy+10},{x:ox+w*0.45-5,y:oy+h*0.4-5},{x:ox+10,y:oy+h*0.4-5} ], label:"Living Room" },
+      { id: uid(), type:"room", points:[ {x:ox+w*0.45+5,y:oy+10},{x:ox+w-10,y:oy+10},{x:ox+w-10,y:oy+h*0.4-5},{x:ox+w*0.45+5,y:oy+h*0.4-5} ], label:"Kitchen" },
+      { id: uid(), type:"room", points:[ {x:ox+10,y:oy+h*0.4+5},{x:ox+w*0.5-5,y:oy+h*0.4+5},{x:ox+w*0.5-5,y:oy+h-10},{x:ox+10,y:oy+h-10} ], label:"Bedroom" },
+      { id: uid(), type:"room", points:[ {x:ox+w*0.5+5,y:oy+h*0.4+5},{x:ox+w-10,y:oy+h*0.4+5},{x:ox+w-10,y:oy+h-10},{x:ox+w*0.5+5,y:oy+h-10} ], label:"Pooja Room" },
+      { id: uid(), type:"door", x: ox+w*0.5, y: oy+h, angle: 0, width: ftToPx(state.doorFt), main:true },
+      { id: uid(), type:"text", x: ox+w*0.5-20, y: oy+h+22, text: "Entry" }
+    ];
+    render(); rebuildList();
+  });
+
+  // ---------- units / scale / size controls ----------
+  function updateUnitButtons(){
+    document.getElementById("unitFt").classList.toggle("active", state.unit === "ft");
+    document.getElementById("unitM").classList.toggle("active", state.unit === "m");
+  }
+  document.getElementById("unitFt").addEventListener("click", () => { state.unit = "ft"; updateUnitButtons(); render(); });
+  document.getElementById("unitM").addEventListener("click", () => { state.unit = "m"; updateUnitButtons(); render(); });
+  document.getElementById("ftPerSquare").addEventListener("input", (e) => {
+    let v = parseFloat(e.target.value);
+    if (!v || v <= 0) v = 1;
+    state.ftPerSquare = v;
+    render();
+  });
+  document.getElementById("doorFt").addEventListener("input", (e) => {
+    let v = parseFloat(e.target.value); if (!v || v<=0) v = 3;
+    state.doorFt = v;
+  });
+  document.getElementById("windowFt").addEventListener("input", (e) => {
+    let v = parseFloat(e.target.value); if (!v || v<=0) v = 4;
+    state.windowFt = v;
+  });
+
+  // ---------- background sketch ----------
+  const fileInput = document.getElementById("fileInput");
+  document.getElementById("uploadBtn").addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => {
+    const file = fileInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const s = csize();
+        const centerWorld = toWorld(s.w/2, s.h/2);
+        const targetW = Math.min(600, s.w/state.view.scale*0.8);
+        const targetH = targetW * (img.height/img.width);
+        state.bg.img = img; state.bg.src = reader.result;
+        state.bg.x = centerWorld.x - targetW/2; state.bg.y = centerWorld.y - targetH/2;
+        state.bg.w = targetW; state.bg.h = targetH;
+        render();
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+  document.getElementById("bgOpacity").addEventListener("input", e => { state.bg.opacity = parseFloat(e.target.value); render(); });
+  document.getElementById("bgVisible").addEventListener("change", e => { state.bg.visible = e.target.checked; render(); });
+  document.getElementById("removeBgBtn").addEventListener("click", () => {
+    state.bg = { src:null, img:null, opacity: state.bg.opacity, visible:true };
+    render();
+  });
+
+  // ---------- sidebar element list ----------
+  function rebuildList(){
+    const list = document.getElementById("elList");
+    const items = state.elements.filter(e => e.type === "room" || (e.type === "door" && e.main) || e.type === "text");
+    if (!items.length){ list.innerHTML = '<div class="empty">Nothing drawn yet.</div>'; return; }
+    list.innerHTML = "";
+    for (const el of items){
+      const row = document.createElement("div");
+      row.className = "el-row" + (el.id === state.selectedId ? " selected" : "");
+      const isRoom = el.type === "room";
+      const isText = el.type === "text";
+      const editable = isRoom || isText;
+      const nameVal = isRoom ? (el.label||"Room") : isText ? el.text : "Main Entrance";
+      let dimText = "";
+      if (isRoom){
+        const pts = el.points;
+        let per = 0; for (let i=0;i<pts.length;i++) per += dist(pts[i].x,pts[i].y,pts[(i+1)%pts.length].x,pts[(i+1)%pts.length].y);
+        dimText = "perimeter " + formatLength(per);
+      }
+      const tag = isRoom ? "Room" : isText ? "Label" : "Entrance";
+      row.innerHTML = '<input type="text" value="' + nameVal.replace(/"/g,"&quot;") + '" ' + (editable?'':'disabled') + '>' +
+        '<div class="meta"><span class="type-tag">' + tag + (dimText ? ' · ' + dimText : '') + '</span><button class="del">Remove</button></div>';
+      row.querySelector("input").addEventListener("input", (ev) => {
+        if (isRoom) el.label = ev.target.value; else if (isText) el.text = ev.target.value;
+        render();
+      });
+      row.querySelector(".del").addEventListener("click", () => {
+        pushHistory();
+        state.elements = state.elements.filter(e => e.id !== el.id);
+        render(); rebuildList();
+      });
+      row.addEventListener("click", (ev) => {
+        if (ev.target.tagName === "INPUT" || ev.target.tagName === "BUTTON") return;
+        state.selectedId = el.id; render(); rebuildList();
+      });
+      list.appendChild(row);
+    }
+  }
+
+  // ---------- save / load / export ----------
+  document.getElementById("saveJsonBtn").addEventListener("click", () => {
+    const data = {
+      elements: state.elements, unit: state.unit, ftPerSquare: state.ftPerSquare,
+      doorFt: state.doorFt, windowFt: state.windowFt,
+      bg: { src: state.bg.src, opacity: state.bg.opacity, visible: state.bg.visible, x: state.bg.x, y: state.bg.y, w: state.bg.w, h: state.bg.h }
+    };
+    const blob = new Blob([JSON.stringify(data,null,2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "vastu-plan.json";
+    a.click();
+  });
+
+  const jsonInput = document.getElementById("jsonInput");
+  document.getElementById("loadJsonBtn").addEventListener("click", () => jsonInput.click());
+  jsonInput.addEventListener("change", () => {
+    const file = jsonInput.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try{
+        const data = JSON.parse(reader.result);
+        pushHistory();
+        state.elements = (data.elements || []).map(migrateElement);
+        state.unit = data.unit || "ft";
+        state.ftPerSquare = data.ftPerSquare || 1;
+        state.doorFt = data.doorFt || 3;
+        state.windowFt = data.windowFt || 4;
+        document.getElementById("ftPerSquare").value = state.ftPerSquare;
+        document.getElementById("doorFt").value = state.doorFt;
+        document.getElementById("windowFt").value = state.windowFt;
+        updateUnitButtons();
+        if (data.bg && data.bg.src){
+          const img = new Image();
+          img.onload = () => { state.bg.img = img; render(); };
+          img.src = data.bg.src;
+          state.bg.src = data.bg.src; state.bg.opacity = data.bg.opacity ?? 0.5; state.bg.visible = data.bg.visible ?? true;
+          state.bg.x = data.bg.x ?? 0; state.bg.y = data.bg.y ?? 0; state.bg.w = data.bg.w ?? 400; state.bg.h = data.bg.h ?? 300;
+          document.getElementById("bgOpacity").value = state.bg.opacity;
+          document.getElementById("bgVisible").checked = state.bg.visible;
+        }
+        render(); rebuildList();
+      } catch(err){
+        alert("Could not read this project file.");
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  document.getElementById("exportPngBtn").addEventListener("click", () => {
+    const wasSelected = state.selectedId;
+    state.selectedId = null;
+    render();
+    canvas.toBlob((blob) => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "vastu-plan.png";
+      a.click();
+      state.selectedId = wasSelected;
+      render();
+    });
+  });
+
+  // ---------- mobile slide-out panels ----------
+  const leftPanel = document.getElementById("left");
+  const rightPanel = document.getElementById("right");
+  const backdrop = document.getElementById("backdrop");
+  function openPanel(p){ closePanels(); p.classList.add("open"); backdrop.classList.add("show"); }
+  function closePanels(){ leftPanel.classList.remove("open"); rightPanel.classList.remove("open"); backdrop.classList.remove("show"); }
+  document.getElementById("openLeftBtn").addEventListener("click", () => openPanel(leftPanel));
+  document.getElementById("openRightBtn").addEventListener("click", () => openPanel(rightPanel));
+  backdrop.addEventListener("click", closePanels);
+  document.querySelectorAll(".panel-close").forEach(b => b.addEventListener("click", closePanels));
+
+  // ---------- init ----------
+  resizeCanvas();
+  updateUnitButtons();
+  updateZoomLabel();
+  render();
+  rebuildList();
+})();
+</script>
+</body>
+</html>
