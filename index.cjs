@@ -11,30 +11,35 @@ app.use(express.json());
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyBOO5uDLHJpK5FTBV6wTppqIhMTYsqZlhU';
 
-// MySQL Configuration (Using your existing DB settings)
-const dbConfig = {
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'myvastutool',
-  port: process.env.DB_PORT || 3306
-};
+// MySQL Configuration (Optional - only connects if DB_HOST is explicitly provided and not localhost)
+const dbHost = process.env.DB_HOST;
+let db = null;
 
-let db;
-async function initDb() {
-  try {
-    if (db) await db.end().catch(() => {});
-    db = await mysql.createConnection(dbConfig);
-    console.log('✅ Connected to MySQL (Unified Database)');
-    db.on('error', (err) => {
-      if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') setTimeout(initDb, 2000);
-    });
-  } catch (err) {
-    console.error('❌ MySQL Init Error:', err.message);
-    setTimeout(initDb, 5000);
+if (dbHost && dbHost !== 'localhost' && dbHost !== '127.0.0.1') {
+  const dbConfig = {
+    host: dbHost,
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'myvastutool',
+    port: process.env.DB_PORT || 3306
+  };
+
+  async function initDb() {
+    try {
+      if (db) await db.end().catch(() => {});
+      db = await mysql.createConnection(dbConfig);
+      console.log('✅ Connected to MySQL (Unified Database)');
+      db.on('error', (err) => {
+        if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') setTimeout(initDb, 2000);
+      });
+    } catch (err) {
+      console.warn('⚠️ MySQL connection skipped/unavailable:', err.message);
+    }
   }
+  initDb();
+} else {
+  console.log('ℹ️ Running in Signaling/Webrtc mode without local MySQL requirement');
 }
-initDb();
 
 // Registration Endpoint (Now using MySQL)
 app.post('/api/register', async (req, res) => {
