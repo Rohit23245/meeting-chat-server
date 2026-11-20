@@ -1,5 +1,6 @@
 const express = require('express');
 const http = require('http');
+const path = require('path');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const mysql = require('mysql2/promise');
@@ -8,6 +9,12 @@ const https = require('https');
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Serve Static Meeting UI Frontend
+app.use(express.static(path.join(__dirname, 'public')));
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyBOO5uDLHJpK5FTBV6wTppqIhMTYsqZlhU';
 
