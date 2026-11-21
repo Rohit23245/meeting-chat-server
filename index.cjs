@@ -22,6 +22,14 @@ app.use((req, res, next) => {
   next();
 });
 
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+});
+
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyBOO5uDLHJpK5FTBV6wTppqIhMTYsqZlhU';
 
 // MySQL Configuration (Optional - only connects if DB_HOST is explicitly provided and not localhost)
@@ -41,172 +49,112 @@ if (dbHost && dbHost !== 'localhost' && dbHost !== '127.0.0.1') {
     try {
       if (db) await db.end().catch(() => {});
       db = await mysql.createConnection(dbConfig);
-      console.log('✅ Connected to MySQL (Unified Database)');
+      console.log('Connected to MySQL (Unified Database)');
       db.on('error', (err) => {
         if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') setTimeout(initDb, 2000);
       });
     } catch (err) {
-      console.warn('⚠️ MySQL connection skipped/unavailable:', err.message);
+      console.warn('MySQL connection skipped/unavailable:', err.message);
     }
   }
   initDb();
 } else {
-  console.log('ℹ️ Running in Signaling/Webrtc mode without local MySQL requirement');
+  console.log('Running in Signaling/WebRTC mode without local MySQL requirement');
 }
 
-// Registration Endpoint (Now using MySQL)
-app.post('/api/register', async (req, res) => {
-  try {
-    const { firstname, email, password, mobile, whatsapp, city, state, is_consultant } = req.body;
-    
-    // Check if user exists in MySQL
-    const [existing] = await db.execute('SELECT id FROM marketplace_users WHERE email = ?', [email]);
-    if (existing.length > 0) {
-      return res.status(400).json({ status: 'error', message: 'User already exists' });
-    }
-
-    // Insert into MySQL
-    await db.execute(
-      'INSERT INTO marketplace_users (firstname, email, password, mobile, whatsapp, city, state, is_consultant) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [firstname, email, password, mobile, whatsapp, city, state, is_consultant || '0']
-    );
-    
-    res.json({ status: 'success', message: 'Registration successful (MySQL)!' });
-  } catch (err) {
-    res.status(500).json({ status: 'error', message: err.message });
-  }
-});
-
-// Login Endpoint (Now using MySQL)
-app.post('/api/login', async (req, res) => {
-  try {
-    const { email, password } = req.body;
-    const [users] = await db.execute('SELECT * FROM marketplace_users WHERE email = ? AND password = ?', [email, password]);
-    
-    if (users.length === 0) {
-      return res.status(401).json({ status: 'error', message: 'Invalid credentials' });
-    }
-
-    const user = users[0];
-    await db.execute('UPDATE marketplace_users SET is_online = 1, last_seen = NOW() WHERE id = ?', [user.id]);
-    
-    res.json({ status: 'success', data: { id: user.id, firstname: user.firstname, email: user.email } });
-  } catch (err) {
-    res.status(500).json({ status: 'error', message: err.message });
-  }
-});
-
-// AI Agent Endpoint
-app.post('/api/ai/chat', async (req, res) => {
-    const { message, history } = req.body;
-    const contents = (history || []).map(msg => ({ role: msg.role === 'assistant' ? 'model' : 'user', parts: [{ text: msg.content }] }));
-    contents.push({ role: "user", parts: [{ text: message }] });
-
-    const postData = JSON.stringify({ contents });
-    const options = {
-        hostname: 'generativelanguage.googleapis.com',
-        path: `/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-    };
-
-    const request = https.request(options, (response) => {
-        let data = '';
-        response.on('data', (chunk) => { data += chunk; });
-        response.on('end', () => { res.json(JSON.parse(data)); });
-    });
-    request.write(postData);
-    request.end();
-});
-
-// Astrology Engine Endpoint (Swiss Ephemeris - NASA JPL Accurate)
-const { calculateAstrology } = require('./astrologyEngineForChatServer.cjs');
-app.post('/api/astrology/kundli', calculateAstrology);
-
-const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+// ----------------------------------------------------------------------------
+// P2P SWARM / TREE RELAY MESH TRACKER (SCALES TO 1,000+ VIEWERS)
+// ----------------------------------------------------------------------------
+const roomSwarm = {}; // roomId -> { hostId, nodes: {} }
 
 io.on('connection', (socket) => {
-  socket.on('join', (data) => {
-    socket.userId = String(data.userId || data);
-    socket.join(socket.userId);
-    io.emit('status_update', { userId: socket.userId, isOnline: true });
+  // Register Host for P2P Swarm
+  socket.on('p2p_register_host', (data) => {
+    const roomId = data.roomId;
+    roomSwarm[roomId] = {
+      hostId: socket.id,
+      nodes: {}
+    };
+    socket.roomId = roomId;
+    socket.isHost = true;
+    console.log('[P2P MESH] Host registered for room:', roomId);
+    socket.emit('p2p_host_registered', { success: true });
   });
 
-  socket.on('send_message', (data) => {
-    io.to(String(data.receiverId)).emit('receive_message', data);
+  // Assign Optimal Parent in Swarm Tree for new Viewer
+  socket.on('p2p_join_viewer', (data) => {
+    const roomId = data.roomId;
+    const userId = data.userId;
+    const swarm = roomSwarm[roomId];
+    if (!swarm || !swarm.hostId) {
+      socket.emit('p2p_swarm_error', { message: 'Host not online or swarm inactive' });
+      return;
+    }
+
+    socket.roomId = roomId;
+    socket.userId = userId;
+
+    // Find parent with less than 3 children (degree limit = 3 for low latency)
+    let assignedParent = swarm.hostId;
+    let minLevel = 1;
+
+    const candidates = [swarm.hostId, ...Object.keys(swarm.nodes)];
+    for (let i = 0; i < candidates.length; i++) {
+      const cand = candidates[i];
+      if (cand === swarm.hostId) {
+        const hostChildren = Object.values(swarm.nodes).filter(n => n.parent === swarm.hostId);
+        if (hostChildren.length < 3) {
+          assignedParent = swarm.hostId;
+          minLevel = 1;
+          break;
+        }
+      } else {
+        const node = swarm.nodes[cand];
+        if (node && node.children.length < 3) {
+          assignedParent = cand;
+          minLevel = node.level + 1;
+          break;
+        }
+      }
+    }
+
+    swarm.nodes[socket.id] = {
+      parent: assignedParent,
+      children: [],
+      level: minLevel,
+      userId: userId
+    };
+
+    if (swarm.nodes[assignedParent]) {
+      swarm.nodes[assignedParent].children.push(socket.id);
+    }
+
+    console.log('[P2P MESH] Viewer', socket.id, 'assigned parent:', assignedParent, 'Level:', minLevel);
+    socket.emit('p2p_assigned_parent', { parentId: assignedParent, level: minLevel });
+    io.to(assignedParent).emit('p2p_child_connecting', { childId: socket.id, userId });
   });
 
-  // Typing status indicator
-  socket.on('typing', (data) => {
-    const receiverId = String(data.receiverId || data.receiver_id || '');
-    const senderId = String(data.senderId || data.sender_id || '');
-    const conversationId = data.conversationId || data.conversation_id;
-
-    io.to(receiverId).emit('user_typing', {
-      senderId,
-      conversationId,
-      isTyping: data.isTyping
+  // Relay Signaling between Parent & Child
+  socket.on('p2p_mesh_signal', (data) => {
+    io.to(data.targetId).emit('p2p_mesh_signal', {
+      fromId: socket.id,
+      signal: data.signal,
+      type: data.type
     });
   });
 
-  // Tracker Notifications
-  socket.on('new_tracker_entry', (data) => {
-    const expertId = String(data.expertId || '');
-    if (expertId) {
-      console.log(`New tracker entry for expert ${expertId} from ${data.userName}`);
-      io.to(expertId).emit('notify_new_problem', {
-        userName: data.userName,
-        problem: data.problem,
-        timestamp: new Date().toISOString()
-      });
-    }
+  // Existing Standard Signaling Handlers
+  socket.on('join', (data) => {
+    socket.userId = data.userId;
+    socket.join(data.userId);
+    socket.join(data.sessionId);
+    if (data.role) socket.role = data.role;
+    console.log(`User ${data.userId} joined rooms`);
   });
 
-  socket.on('expert_tracker_response', (data) => {
-    const userId = String(data.userId || '');
-    if (userId) {
-      console.log(`Expert guidance for user ${userId} from ${data.expertName}`);
-      io.to(userId).emit('notify_expert_guidance', {
-        expertName: data.expertName,
-        problem: data.problem,
-        timestamp: new Date().toISOString()
-      });
-    }
-  });
-
-  // Screen Share Signaling Handlers
-  socket.on('screenshare_offer', (data) => {
-    const receiverId = String(data.receiverId || '');
-    console.log(`Forwarding offer from ${data.senderId} to ${receiverId}`);
-    io.to(receiverId).emit('screenshare_offer', data);
-  });
-
-  socket.on('screenshare_answer', (data) => {
-    const receiverId = String(data.receiverId || '');
-    console.log(`Forwarding answer from ${data.senderId} to ${receiverId}`);
-    io.to(receiverId).emit('screenshare_answer', data);
-  });
-
-  socket.on('screenshare_candidate', (data) => {
-    const receiverId = String(data.receiverId || '');
-    console.log(`Forwarding candidate from ${data.senderId} to ${receiverId}`);
-    io.to(receiverId).emit('screenshare_candidate', data);
-  });
-
-  socket.on('screenshare_stop', (data) => {
-    const receiverId = String(data.receiverId || '');
-    console.log(`Stopping screen share for ${receiverId}`);
-    io.to(receiverId).emit('screenshare_stop', data);
-  });
-
-  // ─── Video / Audio Call Signaling ──────────────────────────────────────────
   socket.on('call_offer', (data) => {
-    const receiverId = String(data.receiverId || '');
-    const isBroadcast = data.isBroadcast || false;
-    console.log(`[CALL] call_offer from ${data.senderId} to ${receiverId} (type: ${data.callType}, broadcast: ${isBroadcast})`);
-    
-    if (isBroadcast) {
+    const receiverId = String(data.receiverId);
+    if (data.isBroadcast) {
       io.to(`broadcast_${data.senderId}`).emit('call_offer', data);
     } else {
       io.to(receiverId).emit('call_offer', data);
@@ -214,103 +162,43 @@ io.on('connection', (socket) => {
   });
 
   socket.on('call_answer', (data) => {
-    const receiverId = String(data.receiverId || '');
-    console.log(`[CALL] call_answer from ${data.senderId} to ${receiverId}`);
+    const receiverId = String(data.receiverId);
     io.to(receiverId).emit('call_answer', data);
   });
 
   socket.on('call_candidate', (data) => {
-    const receiverId = String(data.receiverId || '');
-    const isBroadcast = data.isBroadcast || false;
-    if (isBroadcast && data.role === 'expert') {
-        io.to(`broadcast_${data.senderId}`).emit('call_candidate', data);
+    const receiverId = String(data.receiverId);
+    if (data.isBroadcast) {
+      io.to(`broadcast_${data.senderId}`).emit('call_candidate', data);
     } else {
-        io.to(receiverId).emit('call_candidate', data);
+      io.to(receiverId).emit('call_candidate', data);
     }
-  });
-
-  socket.on('call_end', (data) => {
-    const receiverId = String(data.receiverId || '');
-    const isBroadcast = data.isBroadcast || false;
-    console.log(`[CALL] call_end from ${data.senderId} to ${receiverId}`);
-    
-    if (isBroadcast) {
-        io.to(`broadcast_${data.senderId}`).emit('call_end', data);
-    } else {
-        io.to(receiverId).emit('call_end', data);
-    }
-  });
-
-  socket.on('call_rejected', (data) => {
-    const receiverId = String(data.receiverId || '');
-    console.log(`[CALL] call_rejected from ${data.senderId} to ${receiverId}`);
-    io.to(receiverId).emit('call_rejected', data);
-  });
-
-  socket.on('request_call_offer', (data) => {
-    const receiverId = String(data.receiverId || '');
-    console.log(`[CALL] request_call_offer from ${data.senderId} to ${receiverId}`);
-    io.to(receiverId).emit('request_call_offer', data);
-  });
-
-  // LIVE STREAMING
-  socket.on('start_live', (data) => {
-    socket.expertId = String(data.expertId);
-    socket.join(`live_${data.expertId}`);
-    socket.broadcast.emit('expert_is_live', data);
   });
 
   socket.on('join_live', (data) => {
     socket.join(`live_${data.expertId}`);
-    io.to(data.expertId).emit('viewer_joined', { viewerId: data.userId });
-  });
-
-  socket.on('live_signal', (data) => {
-    io.to(data.to).emit('live_signal', { signal: data.signal, from: data.from });
   });
 
   socket.on('live_chat_message', (data) => {
-    io.to(`live_${data.expertId}`).emit('receive_live_chat', {
-      ...data,
-      timestamp: data.timestamp || new Date().toISOString()
-    });
+    io.to(`live_${data.expertId}`).emit('receive_live_chat', data);
   });
 
-  socket.on('stop_live', async (data) => {
-    const expertId = String(data.expertId);
-    io.to(`live_${expertId}`).emit('live_ended');
-    socket.broadcast.emit('live_ended', { expertId });
-    if (socket.expertId) {
-      delete socket.expertId;
-    }
-    if (db) {
-      try {
-        await db.execute('UPDATE marketplace_users SET is_live = 0 WHERE id = ?', [expertId]);
-        await db.execute('UPDATE expert_profiles SET is_live = 0 WHERE user_id = ?', [expertId]);
-        console.log(`DB updated: Expert ${expertId} is no longer live`);
-      } catch (err) {
-        console.error('Failed to update live status on stop_live:', err.message);
-      }
-    }
-  });
-
-  socket.on('disconnect', async () => {
-    if (socket.userId) io.emit('status_update', { userId: socket.userId, isOnline: false });
-    
-    if (socket.expertId) {
-      const expertId = socket.expertId;
-      console.log(`Expert ${expertId} disconnected. Ending live session.`);
-      io.to(`live_${expertId}`).emit('live_ended');
-      socket.broadcast.emit('live_ended', { expertId });
-      delete socket.expertId;
-      if (db) {
-        try {
-          await db.execute('UPDATE marketplace_users SET is_live = 0 WHERE id = ?', [expertId]);
-          await db.execute('UPDATE expert_profiles SET is_live = 0 WHERE user_id = ?', [expertId]);
-          console.log(`DB updated: Expert ${expertId} is no longer live due to disconnect`);
-        } catch (err) {
-          console.error('Failed to update live status on disconnect:', err.message);
+  socket.on('disconnect', () => {
+    if (socket.roomId && roomSwarm[socket.roomId]) {
+      const swarm = roomSwarm[socket.roomId];
+      if (socket.isHost) {
+        io.to(socket.roomId).emit('p2p_host_ended');
+        delete roomSwarm[socket.roomId];
+      } else if (swarm.nodes[socket.id]) {
+        const myNode = swarm.nodes[socket.id];
+        const orphanedChildren = myNode.children || [];
+        if (myNode.parent && swarm.nodes[myNode.parent]) {
+          swarm.nodes[myNode.parent].children = swarm.nodes[myNode.parent].children.filter(id => id !== socket.id);
         }
+        delete swarm.nodes[socket.id];
+        orphanedChildren.forEach(childId => {
+          io.to(childId).emit('p2p_reconnect_request', { fallbackToHost: true });
+        });
       }
     }
   });
